@@ -2,6 +2,13 @@ from typing import Dict
 import torch
 import numpy as np
 import copy
+
+import os 
+import sys
+import pathlib
+ROOT_DIR = str(pathlib.Path(__file__).parent.parent.parent)
+sys.path.append(ROOT_DIR)
+
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.sampler import (
@@ -87,6 +94,13 @@ class PushTImageDataset(BaseImageDataset):
         sample = self.sampler.sample_sequence(idx)
         data = self._sample_to_data(sample)
         torch_data = dict_apply(data, torch.from_numpy)
+        def print_dict(data, func):
+            for key, value in data.items():
+                if isinstance(value, dict):
+                    print_dict(value, func)
+                else:
+                    print(key, value.shape)
+        # print_dict(torch_data, print_dict)
         return torch_data
 
 
@@ -100,3 +114,6 @@ def test():
     # nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
     # diff = np.diff(nactions, axis=0)
     # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+if __name__=="__main__":
+    pushtdataset = PushTImageDataset(zarr_path="data/pusht/pusht_cchi_v7_replay.zarr", horizon=1)
+    pushtdataset.__getitem__(0)

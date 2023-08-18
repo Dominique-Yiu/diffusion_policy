@@ -2,6 +2,13 @@ from typing import Dict
 import torch
 import numpy as np
 import copy
+
+import os 
+import sys
+import pathlib
+ROOT_DIR = str(pathlib.Path(__file__).parent.parent.parent)
+sys.path.append(ROOT_DIR)
+
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.sampler import (
@@ -35,7 +42,7 @@ class PushTLowdimDataset(BaseLowdimDataset):
             mask=train_mask, 
             max_n=max_train_episodes, 
             seed=seed)
-
+        # Load data
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
             sequence_length=horizon,
@@ -94,4 +101,16 @@ class PushTLowdimDataset(BaseLowdimDataset):
         data = self._sample_to_data(sample)
 
         torch_data = dict_apply(data, torch.from_numpy)
+
+        def print_dict(data, func):
+            for key, value in data.items():
+                if isinstance(value, dict):
+                    print_dict(value, func)
+                else:
+                    print(key, value.shape)
+        # print_dict(torch_data, print_dict)
         return torch_data
+
+if __name__=="__main__":
+    pushtdataset = PushTLowdimDataset(zarr_path="data/pusht/pusht_cchi_v7_replay.zarr", horizon=8)
+    print(pushtdataset[0])

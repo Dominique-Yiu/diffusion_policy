@@ -3,6 +3,13 @@ import torch
 import numpy as np
 import copy
 import pathlib
+
+import os 
+import sys
+import pathlib
+ROOT_DIR = str(pathlib.Path(__file__).parent.parent.parent)
+sys.path.append(ROOT_DIR)
+
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.sampler import SequenceSampler, get_val_mask
@@ -88,4 +95,18 @@ class KitchenLowdimDataset(BaseLowdimDataset):
         data = sample
 
         torch_data = dict_apply(data, torch.from_numpy)
+
+        def print_dict(data, func):
+            for key, value in data.items():
+                if isinstance(value, dict):
+                    print_dict(value, func)
+                else:
+                    print(key, value.shape)
+        # print_dict(torch_data, print_dict)
+
         return torch_data
+
+
+if __name__=="__main__":
+    kitchen_dataset = KitchenLowdimDataset(dataset_dir="data/kitchen", horizon=1)
+    print(kitchen_dataset[0])

@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - task: lift_image_abs
+  - task: square_image
 
 name: train_diffusion_transformer_hybrid
 _target_: diffusion_policy.workspace.train_diffusion_transformer_hybrid_workspace.TrainDiffusionTransformerHybridWorkspace
@@ -91,16 +91,16 @@ training:
   # optimization
   lr_scheduler: cosine
   # Transformer needs LR warmup
-  lr_warmup_steps: 1000
-  num_epochs: 3050
+  lr_warmup_steps: 10
+  num_epochs: 100
   gradient_accumulate_every: 1
   # EMA destroys performance when used with BatchNorm
   # replace BatchNorm with GroupNorm.
   use_ema: True
   # training loop control
   # in epochs
-  rollout_every: 50
-  checkpoint_every: 50
+  rollout_every: 10
+  checkpoint_every: 10
   val_every: 1
   sample_every: 5
   # steps per epoch

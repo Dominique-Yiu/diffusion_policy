@@ -243,7 +243,7 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
         cond_data = None
         cond_mask = None
         if self.obs_as_cond:
-            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
+            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))   # [bs * To, ...]
             nobs_features = self.obs_encoder(this_nobs)
             # reshape back to B, To, Do
             cond = nobs_features.reshape(B, To, -1)
