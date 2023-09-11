@@ -93,9 +93,12 @@ class Backbone(BackboneBase):
         num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
-
+from diffusion_policy.model.ACT.position_encoding import PositionEmbeddingLearned, PositionEmbeddingSine
+from typing import Union
 class Joiner(nn.Sequential):
-    def __init__(self, backbone, position_embedding):
+    def __init__(self, 
+                 backbone: Backbone, 
+                 position_embedding: Union[PositionEmbeddingLearned, PositionEmbeddingSine]):
         super().__init__(backbone, position_embedding)
 
     def forward(self, tensor_list: NestedTensor):

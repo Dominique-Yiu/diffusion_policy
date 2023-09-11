@@ -16,6 +16,7 @@ from diffusion_policy.gym_util.video_recording_wrapper import VideoRecordingWrap
 from diffusion_policy.model.common.rotation_transformer import RotationTransformer
 
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
+from diffusion_policy.policy.vinn_byol_policy import VINNBoylImagePolicy
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.env.robomimic.robomimic_image_wrapper import RobomimicImageWrapper
@@ -235,7 +236,7 @@ class RobomimicImageRunner(BaseImageRunner):
         self.abs_action = abs_action
         self.tqdm_interval_sec = tqdm_interval_sec
 
-    def run(self, policy: BaseImagePolicy):
+    def run(self, policy: BaseImagePolicy, fea_dataset=None):
         device = policy.device
         dtype = policy.dtype
         env = self.env
@@ -291,7 +292,10 @@ class RobomimicImageRunner(BaseImageRunner):
 
                 # run policy
                 with torch.no_grad():
-                    action_dict = policy.predict_action(obs_dict)
+                    if isinstance(policy, VINNBoylImagePolicy):
+                        action_dict = policy.predict_action(obs_dict, fea_dataset)
+                    else:
+                        action_dict = policy.predict_action(obs_dict)
 
                 # device_transfer
                 np_action_dict = dict_apply(action_dict,

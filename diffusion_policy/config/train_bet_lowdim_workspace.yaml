@@ -83,15 +83,15 @@ training:
   resume: True
   # optimization
   lr_scheduler: cosine
-  lr_warmup_steps: 500
-  num_epochs: 5000
+  lr_warmup_steps: 50
+  num_epochs: 500
   gradient_accumulate_every: 1
   grad_norm_clip: 1.0
   enable_normalizer: True
   # training loop control
   # in epochs
-  rollout_every: 50
-  checkpoint_every: 50
+  rollout_every: 10
+  checkpoint_every: 10
   val_every: 1
   sample_every: 5
   # steps per epoch
@@ -101,7 +101,7 @@ training:
   tqdm_interval_sec: 1.0
 
 logging:
-  project: diffusion_policy_debug
+  project: BeT_policy_debug
   resume: True
   mode: online
   name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}

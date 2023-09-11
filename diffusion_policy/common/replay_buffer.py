@@ -152,6 +152,7 @@ class ReplayBuffer:
         """
         Load to memory.
         """
+
         src_root = zarr.group(src_store)
         root = None
         if store is None:

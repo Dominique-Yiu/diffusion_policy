@@ -27,6 +27,8 @@ def main(cfg: OmegaConf):
     # will use the same time.
     OmegaConf.resolve(cfg)
 
+    # policy = hydra.utils.instantiate(cfg.policy)
+    # print(type(policy.model))
     cls = hydra.utils.get_class(cfg._target_)
     workspace: BaseWorkspace = cls(cfg)
     workspace.run()

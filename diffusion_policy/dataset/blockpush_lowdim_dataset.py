@@ -131,15 +131,15 @@ class BlockPushLowdimDataset(BaseLowdimDataset):
 
         torch_data = dict_apply(data, torch.from_numpy)
 
-        def print_dict(data, func):
-            for key, value in data.items():
-                if isinstance(value, dict):
-                    print_dict(value, func)
-                else:
-                    print(key, value.shape)
-        print_dict(torch_data, print_dict)
+        # def print_dict(data, func):
+        #     for key, value in data.items():
+        #         if isinstance(value, dict):
+        #             print_dict(value, func)
+        #         else:
+        #             print(key, value.shape)
+        # print_dict(torch_data, print_dict)
         return torch_data
 
-if __name__=="__main__":
-    pushtdataset = BlockPushLowdimDataset(zarr_path="data/block_pushing/multimodal_push_seed_abs.zarr", horizon=8)
-    pushtdataset.__getitem__(0)
+# if __name__=="__main__":
+#     pushtdataset = BlockPushLowdimDataset(zarr_path="data/block_pushing/multimodal_push_seed_abs.zarr", horizon=8)
+#     pushtdataset.__getitem__(0)
