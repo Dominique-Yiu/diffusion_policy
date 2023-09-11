@@ -17,6 +17,7 @@ from diffusion_policy.model.common.rotation_transformer import RotationTransform
 
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from diffusion_policy.policy.vinn_byol_policy import VINNBoylImagePolicy
+from diffusion_policy.policy.action_chunk_transformer_policy import ActionChunkTransformerPolicy
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.env.robomimic.robomimic_image_wrapper import RobomimicImageWrapper
@@ -296,22 +297,25 @@ class RobomimicImageRunner(BaseImageRunner):
                         action_dict = policy.predict_action(obs_dict, fea_dataset)
                     else:
                         action_dict = policy.predict_action(obs_dict)
-
-                # device_transfer
-                np_action_dict = dict_apply(action_dict,
-                    lambda x: x.detach().to('cpu').numpy())
-
-                action = np_action_dict['action']
-                if not np.all(np.isfinite(action)):
-                    print(action)
-                    raise RuntimeError("Nan or Inf action")
                 
-                # step env
-                env_action = action
-                if self.abs_action:
-                    env_action = self.undo_transform_action(action)
+                if isinstance(policy, ActionChunkTransformerPolicy) and policy.temporal_agg is True:
+                    all_time_actions = torch.zeros([self.max_steps, self.max_steps + policy.num_queries, policy.action_dim]).to(device)
+                else:
+                    # device_transfer
+                    np_action_dict = dict_apply(action_dict,
+                        lambda x: x.detach().to('cpu').numpy())
 
-                obs, reward, done, info = env.step(env_action)
+                    action = np_action_dict['action']
+                    if not np.all(np.isfinite(action)):
+                        print(action)
+                        raise RuntimeError("Nan or Inf action")
+                    
+                    # step env
+                    env_action = action
+                    if self.abs_action:
+                        env_action = self.undo_transform_action(action)
+
+                    obs, reward, done, info = env.step(env_action)
                 done = np.all(done)
                 past_action = action
 
