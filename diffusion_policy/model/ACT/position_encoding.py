@@ -7,6 +7,8 @@ from torch import nn
 
 from diffusion_policy.model.common.misc import NestedTensor
 import ipdb
+import warnings
+warnings.filterwarnings("ignore")
 
 class PositionEmbeddingSine(nn.Module):
     """

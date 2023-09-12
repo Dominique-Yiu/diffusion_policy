@@ -277,7 +277,14 @@ class RobomimicImageRunner(BaseImageRunner):
             pbar = tqdm.tqdm(total=self.max_steps, desc=f"Eval {env_name}Image {chunk_idx+1}/{n_chunks}", 
                 leave=False, mininterval=self.tqdm_interval_sec)
             
+            all_env_time_actions = None
+
+            # initialize temporal array
+            if isinstance(policy, ActionChunkTransformerPolicy) and policy.temporal_agg is True:
+                all_env_time_actions = torch.zeros([n_envs, self.max_steps, self.max_steps + policy.num_queries, policy.action_dim]).to(device)
+
             done = False
+            ts = 0
             while not done:
                 # create obs dict
                 np_obs_dict = dict(obs)
@@ -298,27 +305,51 @@ class RobomimicImageRunner(BaseImageRunner):
                     else:
                         action_dict = policy.predict_action(obs_dict)
                 
-                if isinstance(policy, ActionChunkTransformerPolicy) and policy.temporal_agg is True:
-                    all_time_actions = torch.zeros([self.max_steps, self.max_steps + policy.num_queries, policy.action_dim]).to(device)
+                if all_env_time_actions is not None:
+                    action_dict = dict_apply(action_dict,
+                                             lambda x: x.detach())
+                    # original_action dim: [envs_num, query_num, act_dim]
+                    # all_env_time_actions dim: [env_num, max_steps, max_steps+query_num, act_dim]
+                    original_action = action_dict['action']
+                    all_env_time_actions[:, ts, ts:ts + policy.num_queries, :] = original_action
+                    
+                    # average actions for each env
+                    all_env_curr_actions = torch.zeros([n_envs, 1, policy.action_dim]).to(device)
+                    for env_idx, per_env in enumerate(all_env_time_actions):
+                        tmp_env = per_env   # [max_steps, max_steps+query_num, act_dim]
+                        act_for_curr_step = tmp_env[:, ts]
+                        act_populated = torch.all(act_for_curr_step != 0, axis=1)
+                        act_for_curr_step = act_for_curr_step[act_populated]
+                        k = 0.01
+                        exp_weights = np.exp(-k * np.arange(len(act_for_curr_step)))
+                        exp_weights = exp_weights / exp_weights.sum()
+                        exp_weights = torch.from_numpy(exp_weights).to(device).unsqueeze(dim=1)
+                        raw_action = (act_for_curr_step * exp_weights).sum(dim=0, keepdim=True)
+                        all_env_curr_actions[env_idx] = raw_action
+                    
+                    # device transfer
+                    action = all_env_curr_actions.to('cpu').numpy()
                 else:
                     # device_transfer
                     np_action_dict = dict_apply(action_dict,
                         lambda x: x.detach().to('cpu').numpy())
 
                     action = np_action_dict['action']
-                    if not np.all(np.isfinite(action)):
-                        print(action)
-                        raise RuntimeError("Nan or Inf action")
-                    
-                    # step env
-                    env_action = action
-                    if self.abs_action:
-                        env_action = self.undo_transform_action(action)
 
-                    obs, reward, done, info = env.step(env_action)
+                if not np.all(np.isfinite(action)):
+                    print(action)
+                    raise RuntimeError("Nan or Inf action")
+                
+                # step env
+                env_action = action
+                if self.abs_action:
+                    env_action = self.undo_transform_action(action)
+
+                obs, reward, done, info = env.step(env_action)
                 done = np.all(done)
                 past_action = action
-
+                
+                ts += 1
                 # update pbar
                 pbar.update(action.shape[1])
             pbar.close()
