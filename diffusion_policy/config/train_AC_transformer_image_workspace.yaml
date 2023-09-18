@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - task: square_image
+  - task: tool_hang_image
 
 name: train_action_chunk_transformer
 _target_: diffusion_policy.workspace.train_action_chunk_transformer_workspace.TrainActionChunkTransformerWorkspace
@@ -40,8 +40,8 @@ policy:
     _target_: diffusion_policy.model.ACT.transformer.Transformer
     d_model: 512
     nhead: 8
-    num_encoder_layers: 6
-    num_decoder_layers: 6
+    num_encoder_layers: 4
+    num_decoder_layers: 4
     dim_feedfowrard: 2048
     dropout: 0.1
     activation: relu
@@ -58,7 +58,7 @@ policy:
   
   state_dim: 7
   num_queries: 10
-  camera_names: ["agentview_image", "robot0_eye_in_hand_image"]
+  camera_names: ["sideview_image", "robot0_eye_in_hand_image"]
   num_encoder_layers: 4
   
   kl_weight: 10
@@ -106,14 +106,14 @@ optimizer:
   lr_backbone: 1.0e-5
 
 dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
   shuffle: True
   pin_memory: True
   persistent_workers: False
 
 val_dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
   shuffle: False
   pin_memory: True

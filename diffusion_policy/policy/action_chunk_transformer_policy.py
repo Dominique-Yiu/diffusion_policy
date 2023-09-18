@@ -59,10 +59,16 @@ class ActionChunkTransformerPolicy(BaseImagePolicy):
     def predict_action(self, obs_dict):
         env_state = None
         nobs = self.normalizer.normalize(obs_dict)
-
-        agent_view_img = nobs['agentview_image'][:, 0] # [bs, c, h, w]
-        hand_img = nobs['robot0_eye_in_hand_image'][:, 0] # [bs, c, h ,w]
-        image_data = torch.cat((agent_view_img.unsqueeze(1), hand_img.unsqueeze(1)), dim=1) # [bs, 2, c, h ,w]
+        if 'agentview_image' in nobs.keys():
+            agent_view_img = nobs['agentview_image'][:, 0] # [bs, c, h, w]
+            hand_img = nobs['robot0_eye_in_hand_image'][:, 0] # [bs, c, h ,w]
+            image_data = torch.cat((agent_view_img.unsqueeze(1), hand_img.unsqueeze(1)), dim=1) # [bs, 2, c, h ,w]
+        elif 'sideview_image' in nobs.keys():
+            side_view_img = nobs['sideview_image'][:, 0] # [bs, c, h, w]
+            hand_img = nobs['robot0_eye_in_hand_image'][:, 0] # [bs, c, h ,w]
+            image_data = torch.cat((side_view_img.unsqueeze(1), hand_img.unsqueeze(1)), dim=1) # [bs, 2, c, h ,w]
+        else:
+            raise NotImplementedError
 
         robot0_eef_pos = nobs['robot0_eef_pos'][:, 0] # [bs, 3]
         robot0_eef_quat = nobs['robot0_eef_quat'][:, 0] # [bs, 4]
@@ -92,9 +98,16 @@ class ActionChunkTransformerPolicy(BaseImagePolicy):
         nactions = self.normalizer['action'].normalize(batch['action']) # [bs, horizon, 7]
 
         # do preprocessing
-        agent_view_img = nobs['agentview_image'][:, 0] # [bs, c, h, w]
-        hand_img = nobs['robot0_eye_in_hand_image'][:, 0] # [bs, c, h ,w]
-        image_data = torch.cat((agent_view_img.unsqueeze(1), hand_img.unsqueeze(1)), dim=1) # [bs, 2, c, h ,w]
+        if 'agentview_image' in nobs.keys():
+            agent_view_img = nobs['agentview_image'][:, 0] # [bs, c, h, w]
+            hand_img = nobs['robot0_eye_in_hand_image'][:, 0] # [bs, c, h ,w]
+            image_data = torch.cat((agent_view_img.unsqueeze(1), hand_img.unsqueeze(1)), dim=1) # [bs, 2, c, h ,w]
+        elif 'sideview_image' in nobs.keys():
+            side_view_img = nobs['sideview_image'][:, 0] # [bs, c, h, w]
+            hand_img = nobs['robot0_eye_in_hand_image'][:, 0] # [bs, c, h ,w]
+            image_data = torch.cat((side_view_img.unsqueeze(1), hand_img.unsqueeze(1)), dim=1) # [bs, 2, c, h ,w]
+        else:
+            raise NotImplementedError
 
         robot0_eef_pos = nobs['robot0_eef_pos'][:, 0] # [bs, 3]
         robot0_eef_quat = nobs['robot0_eef_quat'][:, 0] # [bs, 4]
