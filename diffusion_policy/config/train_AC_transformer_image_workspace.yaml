@@ -74,16 +74,16 @@ training:
   # optimization
   lr_scheduler: cosine
   # Transformer needs lr wormup
-  lr_warmup_steps: 10
-  num_epochs: 100
+  lr_warmup_steps: 100
+  num_epochs: 1000
   gradient_accumulate_every: 1
   # EMA destroys performance when used with BatchNorm
   # replace BatchNorm with GroupNorm.
   use_ema: True
   # training loop control
   # in epcoch
-  rollout_every: 10
-  checkpoint_every: 10
+  rollout_every: 50
+  checkpoint_every: 50
   val_every: 1
   sample_every: 10
   # steps per epoch
@@ -106,14 +106,14 @@ optimizer:
   lr_backbone: 1.0e-5
 
 dataloader:
-  batch_size: 32
+  batch_size: 128
   num_workers: 8
   shuffle: True
   pin_memory: True
   persistent_workers: False
 
 val_dataloader:
-  batch_size: 32
+  batch_size: 128
   num_workers: 8
   shuffle: False
   pin_memory: True
