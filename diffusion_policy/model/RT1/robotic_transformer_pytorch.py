@@ -279,6 +279,7 @@ class MaxViT(nn.Module):
                  dropout=0.1,
                  channels=3) -> None:
         super().__init__()
+        depth = depth if isinstance(depth, tuple) else tuple(depth)
         assert isinstance(depth, tuple), 'depth needs to be tuple if integers indicating number of transformer blocks at that stage'
 
         # convolutional stem
@@ -356,6 +357,11 @@ class MaxViT(nn.Module):
                 cond_fns: Optional[Tuple[Callable, ...]] = None,
                 cond_drop_prob = 0.,
                 return_embeddings = False):
+        
+        """ 
+        NOTE: GOT BUG HERE, NEEDED REPAIR 
+        """
+
         x = self.conv_stem(x)
 
         if not exists(cond_fns):

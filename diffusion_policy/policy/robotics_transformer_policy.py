@@ -79,7 +79,7 @@ class Robotics_Transformer_policy(BaseImagePolicy):
         # normalize input
         nobs = self.normalizer.normalize(batch['obs'])
         nobs = nobs[self.camera_name]   # extract the eye in hand camera [bs, horizon, h, w, c]
-        video = rearrange(nobs, 'bs frames h w c -> bs c frames h w')
+        video = rearrange(nobs, 'bs frames c h w -> bs c frames h w')
         nactions = self.normalizer['action'].normalize(batch['action'])
         act_target = nactions[:, -1]
 

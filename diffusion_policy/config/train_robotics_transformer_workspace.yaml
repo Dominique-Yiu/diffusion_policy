@@ -1,0 +1,118 @@
+defaults:
+  - _self_
+  - task: square_image
+
+name: train_robotics_transformer
+_target_: diffusion_policy.workspace.train_robotics_transformer_workspace.TrainRoboticsTransformerWorkspace
+
+task_name: ${task.name}
+shape_meta: ${task.shape_meta}
+exp_name: "default"
+
+horizon: 6
+n_obs_steps: 6
+n_action_steps: 1
+n_latency_steps: 0
+dataset_obs_steps: ${n_obs_steps}
+past_action_visible: False
+keypoint_visible_rate: 1.0
+obs_as_cond: True
+
+policy:
+  _target_: diffusion_policy.policy.robotics_transformer_policy.Robotics_Transformer_policy
+
+  shape_meta: ${shape_meta}
+  camera_name: robot0_eye_in_hand_image
+
+  vit:
+    _target_: diffusion_policy.model.RT1.robotic_transformer_pytorch.MaxViT
+
+    num_classes: 1000
+    dim: 96 
+    depth: [2, 5] # [2, 2, 5, 2]
+    dim_head: 32
+    dim_conv_stem: 64
+    window_size: 7
+    mbconv_expansion_rate: 4
+    mbconv_shrinkage_rate: 0.25
+    dropout: 0.1
+    channels: 3
+  
+  action_bins: 256
+  depth: 6
+  heads: 8
+  dim_head: 64
+  token_learner_ff_mult: 2
+  token_learner_num_layers: 2
+  token_learner_num_output_tokens: 2
+  cond_drop_prob: 0.2
+  use_attn_conditioner: False
+
+optimizer:
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-3
+  betas: [0.9, 0.95]
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: False
+  resume: True
+  # transformer need LR warmup
+  lr_warmup_steps: 10
+  num_epochs: 100
+  rollout_every: 10
+  checkpoint_every: 10
+  val_every: 1
+  sample_every: 20
+  gradient_accumulate_every: 1
+
+  tqdm_interval_sec: 1.0
+  
+  max_train_steps: null
+  max_val_steps: null
+
+dataloader:
+  batch_size: 16
+  num_workers: 8
+  shuffle: True
+  pin_memory: True
+  persistent_workers: False
+
+val_dataloader:
+  batch_size: 16
+  num_workers: 8
+  shuffle: False
+  pin_memory: True
+  persistent_workers: False
+
+logging:
+  project: robotics_transforer_policy
+  resume: True
+  mode: online
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  tags: ["${name}", "${task_name}", "${exp_name}"]
+  id: null
+  group: null
+
+checkpoint:
+  topk:
+    monitor_key: test_mean_score
+    mode: max
+    k: 5
+    format_str: 'epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}
