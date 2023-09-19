@@ -3,9 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+from torchvision import transforms as T
 
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.model.RT1.robotic_transformer_pytorch import RT1, MaxViT
+from diffusion_policy.model.RT1.action_tokenizer import RT1ActionTokenizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 
@@ -15,6 +17,7 @@ import math
 class Robotics_Transformer_policy(BaseImagePolicy):
     def __init__(self,
                  shape_meta,
+                 crop_shape,
                  camera_name,
                  # Robotics Transformer Configuration
                  vit: MaxViT,
@@ -52,6 +55,8 @@ class Robotics_Transformer_policy(BaseImagePolicy):
         self.action_dim = action_dim
         self.normalizer = LinearNormalizer()
         self.camera_name = camera_name
+        self.preprocess = T.Compose([T.Resize((crop_shape[0], crop_shape[1]))])
+        self.tokenizer = RT1ActionTokenizer(action_bins)
 
     def predict_action(self, obs_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
@@ -59,15 +64,23 @@ class Robotics_Transformer_policy(BaseImagePolicy):
         """
         # narmalize input
         nobs = self.normalizer.normalize(obs_dict)
-        nobs = nobs[self.camera_name] 
-        video = rearrange(nobs, 'bs frames h w c -> bs c frames h w')
+        nobs = nobs[self.camera_name]
+        bs, frames = nobs.shape[0], nobs.shape[1]
+
+        nobs = rearrange(nobs, 'bs frames c h w -> (bs frames) c h w')
+        nobs = self.preprocess(nobs) # (bs frames) c crop_h crop_w
+        video = rearrange(nobs, '(bs frames) c crop_h crop_w -> bs c frames crop_h crop_w', bs=bs, frames=frames)
 
         device = self.device
         dtype = self.dtype
         
         instructions = None
-        nact_pred = self.model(video, instructions)
+        nact_pred_logits = self.model(video, instructions)
+        nact_pred_logits = nact_pred_logits [:, -1]
+        nact_pred_token = torch.argmax(nact_pred_logits, dim=-1)
+        nact_pred = self.tokenizer.detokenize(nact_pred_token)
         action_pred = self.normalizer['action'].unnormalize(nact_pred)
+        action_pred = action_pred.unsqueeze(1)
 
         result = {
             'action': action_pred,
@@ -79,17 +92,20 @@ class Robotics_Transformer_policy(BaseImagePolicy):
         # normalize input
         nobs = self.normalizer.normalize(batch['obs'])
         nobs = nobs[self.camera_name]   # extract the eye in hand camera [bs, horizon, h, w, c]
-        video = rearrange(nobs, 'bs frames c h w -> bs c frames h w')
-        nactions = self.normalizer['action'].normalize(batch['action'])
-        act_target = nactions[:, -1]
+        bs, frames = nobs.shape[0], nobs.shape[1]
 
-        batch_size = nactions.shape[0]
-        frames = video.shape[2]
+        nobs = rearrange(nobs, 'bs frames c h w -> (bs frames) c h w')
+        nobs = self.preprocess(nobs) # (bs frames) c crop_h crop_w
+        video = rearrange(nobs, '(bs frames) c crop_h crop_w -> bs c frames crop_h crop_w', bs=bs, frames=frames)
+
+        act_target = self.normalizer['action'].normalize(batch['action'])
+        act_token = self.tokenizer.tokenize(act_target)
+
         # RT-1 defalt frames/sequence length is 6, just images, no low_dim vectors. [b c f h w]
         instructions = None
         act_logits = self.model(video, instructions)
 
-        return self.sequence_loss(act_logits=act_logits, act_target=act_target)
+        return self.sequence_loss(act_logits=act_logits, act_target=act_token)
 
     def sequence_loss(self, act_logits, act_target):
         """
@@ -98,7 +114,7 @@ class Robotics_Transformer_policy(BaseImagePolicy):
         act_target = F.one_hot(act_target.to(dtype=torch.int64),
                   act_logits.shape[-1]).squeeze(2)
         loss = -act_target * F.log_softmax(act_logits)
-        return torch.mean(loss)
+        return torch.sum(torch.mean(loss, dim=-1))
 
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())

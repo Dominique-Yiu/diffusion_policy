@@ -75,7 +75,6 @@ class TestDiffusionTransformerHybridWorkspace(BaseWorkspace):
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
-        import ipdb; ipdb.set_trace()
 
         # configure validation dataset
         val_dataset = dataset.get_validation_dataset()

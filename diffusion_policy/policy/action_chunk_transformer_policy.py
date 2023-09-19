@@ -76,10 +76,11 @@ class ActionChunkTransformerPolicy(BaseImagePolicy):
         qpos_data = torch.cat((robot0_eef_pos, robot0_eef_quat, robot0_gripper_qpos), dim=1) # [bs, 9]
 
         a_hat, _, (_, _) = self.model(qpos_data, image_data, env_state)
-        # NOTE: unormalize
+        action_pred = self.normalizer['action'].unnormalize(a_hat)
+
         result = {
-            "action": a_hat,
-            "action_pred": a_hat,
+            "action": action_pred,
+            "action_pred": action_pred,
         }
         return result
 

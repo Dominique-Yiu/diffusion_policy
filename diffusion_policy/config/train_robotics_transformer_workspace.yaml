@@ -22,6 +22,7 @@ policy:
   _target_: diffusion_policy.policy.robotics_transformer_policy.Robotics_Transformer_policy
 
   shape_meta: ${shape_meta}
+  crop_shape: [64, 64]
   camera_name: robot0_eye_in_hand_image
 
   vit:
@@ -32,7 +33,7 @@ policy:
     depth: [2, 5] # [2, 2, 5, 2]
     dim_head: 32
     dim_conv_stem: 64
-    window_size: 7
+    window_size: 4
     mbconv_expansion_rate: 4
     mbconv_shrinkage_rate: 0.25
     dropout: 0.1
@@ -60,8 +61,8 @@ training:
   resume: True
   # transformer need LR warmup
   lr_warmup_steps: 10
-  num_epochs: 100
-  rollout_every: 10
+  num_epochs: 101
+  rollout_every: 50
   checkpoint_every: 10
   val_every: 1
   sample_every: 20
