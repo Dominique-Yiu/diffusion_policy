@@ -1,0 +1,83 @@
+name: square_image
+
+shape_meta: &shape_meta
+  obs:
+    agentview_image:
+      shape: [3, 84, 84]
+      type: rgb
+    robot0_eye_in_hand_image:
+      shape: [3, 84, 84]
+      type: rgb
+    robot0_eef_pos:
+      shape: [3]
+    robot0_eef_quat:
+      shape: [4]
+    robot0_gripper_qpos:
+      shape: [2]
+  action: 
+    shape: [7]
+
+task_name: &task_name square
+dataset_type: &dataset_type ph
+dataset_path: &dataset_path /media/yaocw/Yiu/diffusion/robomimic/datasets/${task_name}/${dataset_type}/image.hdf5
+abs_action: &abs_action False
+
+task:
+  horizon: 1
+  n_obs_steps: 1
+  n_action_steps: 1
+  n_latency_steps: 0
+  dataset_obs_steps: ${.n_obs_steps}
+  past_action_visible: False
+
+  crop_shape: [76, 76]
+
+training:
+  device: "cuda:0"
+  num_epochs: 100
+  tqdm_interval_sec: 1.0
+
+optimizer:
+  learning_rate: 1.0e-4
+  betas: [0.9, 0.95]
+
+model:
+  _target_: diffusion_policy.model.our_model.byol.byol.pretrain_model
+  
+  image_size: 76
+  hidden_layer: 'avgpool'
+  projection_size: 256
+  projection_hidden_size: 4096
+  moving_average_decay: 0.99
+  use_momentum: True
+  pretrain: True
+
+dataset:
+  _target_: diffusion_policy.dataset.robomimic_replay_image_dataset.RobomimicReplayImageDataset
+
+  shape_meta: *shape_meta
+  dataset_path: *dataset_path
+  horizon: ${task.horizon}
+  pad_before: 0 # ${eval:'${task.n_obs_steps}-1+${task.n_latency_steps}'}
+  pad_after: 0 # ${eval:'${task.n_action_steps}-1'}
+  n_obs_steps: ${task.dataset_obs_steps}
+  abs_action: *abs_action
+  rotation_rep: 'rotation_6d'
+  use_legacy_normalizer: False
+  use_cache: True
+  seed: 42
+  val_ratio: 0.02
+
+dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: True
+  pin_memory: True
+  persistent_workers: False
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: False
+  pin_memory: True
+  persistent_workers: False

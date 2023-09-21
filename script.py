@@ -1,38 +1,40 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from diffusion_policy.model.our_model.discretizer import KMeansDiscretizer
 import torch
-from torchvision import transforms
-from einops import rearrange, pack, unpack
+import ipdb; 
 
-# 假设你有一个输入张量 input_data，其形状为 [batch_size, frames, height, width, channels]
-# 和目标调整后的尺寸 resize_height 和 resize_width
+# Define the parameters for the true clusters
+cluster1_center = torch.Tensor([2, 2])
+cluster2_center = torch.Tensor([8, 8])
+cluster_std = 1.0
 
-# 定义 batch_size, frames, height, width, channels
-batch_size = 4
-frames = 10
-height = 128
-width = 128
-channels = 3
+# Generate data points for the true clusters
+num_samples_per_cluster = 50
+cluster1_samples = torch.randn(num_samples_per_cluster, 2) * cluster_std + cluster1_center
+cluster2_samples = torch.randn(num_samples_per_cluster, 2) * cluster_std + cluster2_center
 
-# 定义目标调整后的尺寸
-resize_height = 64
-resize_width = 64
+# Combine the two clusters
+true_data = torch.vstack((cluster1_samples, cluster2_samples))
 
-# 创建随机输入数据（这里只是示例，实际应该使用你的数据）
-input_data = torch.randn(batch_size, frames, height, width, channels)
-input_data = rearrange(input_data, 'batch_size frames height width channels -> (batch_size frames) channels height width')
-print(input_data.shape)
-# 创建变换组合
-sample = torch.randn(input_data.shape)
-print(f'sample shape: {sample.shape}')
-transform = transforms.Compose([
-    transforms.Resize((resize_height, resize_width))
-])
-print(transform)
-sample_T = transform(sample)
-print(f'sample_T shape {sample_T.shape}')
-# 对输入数据进行变换
-resized_data = transform(input_data)
+discretizer = KMeansDiscretizer(feature_dim=2, num_bins=2, n_iter=100, predict_offsets=True)
+discretizer.fit_discretizer(true_data)
+cluster = discretizer.cluster_centers.detach()
 
-# 输出调整后的张量形状
-print("Resized Data Shape:", resized_data.shape)
-restored_data = rearrange(resized_data, '(batch_size frames) channels height width -> batch_size frames height width channels', batch_size=batch_size)
-print(f"Restore size: {restored_data.shape}")
+plt.scatter(true_data[:, 0], true_data[:, 1], c='b', marker='o', label='Samples')
+plt.scatter(cluster[:, 0], cluster[:, 1], c='r', marker='o', label='Clusters')
+
+test_1 = torch.randn(3, 2) * cluster_std / 2 + cluster1_center
+test_2 = torch.randn(3, 2) * cluster_std / 2 + cluster2_center
+
+
+output, offset = discretizer.encod_into_latent(test_1)
+print(offset)
+output, offset = discretizer.encod_into_latent(test_2)
+print(offset)
+
+plt.legend()
+plt.title('True Clusters and Random Points')
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.show()

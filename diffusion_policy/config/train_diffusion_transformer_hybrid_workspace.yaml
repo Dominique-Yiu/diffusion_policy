@@ -1,6 +1,8 @@
 defaults:
   - _self_
   - task: square_image
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
 
 name: train_diffusion_transformer_hybrid
 _target_: diffusion_policy.workspace.train_diffusion_transformer_hybrid_workspace.TrainDiffusionTransformerHybridWorkspace
