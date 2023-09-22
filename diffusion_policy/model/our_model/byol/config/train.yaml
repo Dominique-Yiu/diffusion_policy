@@ -1,4 +1,4 @@
-name: square_image
+name: &name square_image
 
 shape_meta: &shape_meta
   obs:
@@ -36,6 +36,10 @@ training:
   device: "cuda:0"
   num_epochs: 100
   tqdm_interval_sec: 1.0
+
+  val_every: 1
+  checkpoint_every: 10
+  gradient_accumulate_every: 1
 
 optimizer:
   learning_rate: 1.0e-4
@@ -81,3 +85,21 @@ val_dataloader:
   shuffle: False
   pin_memory: True
   persistent_workers: False
+
+logging:
+  project: train_resnet50_with_byol
+  resume: True
+  mode: online
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  tags: ["${task_name}", "${name}"]
+  id: null
+  group: null
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}

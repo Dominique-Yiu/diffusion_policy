@@ -81,7 +81,7 @@ class KMeansDiscretizer(DictOfTensorMixin):
     def discretized_space(self):
         return self.num_bins
 
-    def encod_into_latent(self,
+    def encode_into_latent(self,
                           input_features: torch.Tensor,
                           input_rep: Optional[torch.Tensor]=None):
         """

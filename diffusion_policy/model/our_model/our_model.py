@@ -6,9 +6,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from diffusion_policy.model.ACT.backbone import Joiner
+from diffusion_policy.model.our_model.byol.byol import pretrain_model
 from diffusion_policy.model.our_model.discretizer.k_means import KMeansDiscretizer
 from diffusion_policy.model.ACT.transformer import Transformer, TransformerEncoder
+from diffusion_policy.model.ACT.position_encoding import PositionEmbeddingLearned, PositionEmbeddingSine
 
 def reparametrize(mu, logvar):
     std = logvar.div(2).exp()
@@ -27,9 +28,10 @@ def get_sinusoid_encoding_table(n_position, d_hid):
 
 class our_model(nn.Module):
     def __init__(self,
-                 backbones: Joiner,
+                 backbones: pretrain_model,
                  transformer: Transformer,
                  encoder: TransformerEncoder,
+                 byol_channels: int,
                  kmeans_class: int,
                  action_dim: int,
                  state_dim: int,
@@ -57,7 +59,7 @@ class our_model(nn.Module):
         self.action_dim = action_dim
         self.num_queries = num_queries
         self.camera_names = camera_names
-        self.kmeans_discretizer = kmeans_discretizer
+        self.kmeans_discretizer: KMeansDiscretizer = kmeans_discretizer
 
         hidden_dim = transformer.d_model
 
@@ -65,7 +67,7 @@ class our_model(nn.Module):
         self.is_pad_head = nn.Linear(hidden_dim, 1)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
 
-        self.input_proj = nn.Conv2d(backbones.num_channels, hidden_dim, kernel_size=1)
+        self.input_proj = nn.Conv2d(byol_channels, hidden_dim, kernel_size=1)
         self.backbones = backbones
         self.input_proj_robot_state = nn.Linear(state_dim, hidden_dim)
 
@@ -80,6 +82,30 @@ class our_model(nn.Module):
         # decoder extra parameters
         self.latent_out_proj = nn.Linear(self.latent_dim, hidden_dim) # project latent sample to embedding
         self.additional_pos_embed = nn.Embedding(2, hidden_dim) # learned position embedding for proprio and latent
+        self.position_embedding = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
+
+    def get_optim_groups(self, weight_decay: float=1e-3):
+        decay = list()
+        no_decay = list()
+        parameters_to_decay = ('weight', 'bias')
+        for name, param in self.named_parameters():
+            if any(param_name in name for param_name in parameters_to_decay) and param.requires_grad:
+                decay.append(param)
+            else:
+                no_decay.append(param)
+        
+        optim_group = [
+            {
+                "params": decay,
+                "weight_decay": weight_decay,
+            },
+            {
+                "params": no_decay,
+                "weight_decay": 0.0,
+            }
+        ]
+
+        return optim_group
 
     def forward(self,
                 joint_states: torch.Tensor,
@@ -95,10 +121,28 @@ class our_model(nn.Module):
         is_training = action is not None
         bs = joint_states.shape[0]
 
+        """
+            NOTE: fit multi images input, now only support one image
+        """
+        # all_cam_features = []
+        # all_cam_pos = []
+        for cam_id, cam_name in enumerate(self.camera_names):
+            query_embedding = self.backbones(images[:, cam_id], return_embedding=True, return_projection=False)
+
+            k_class = self.kmeans_discretizer.encode_into_latent(query_embedding)
+
+            pos = self.position_embedding(query_embedding)
+            src = self.input_proj(query_embedding)
+            # all_cam_features.append(self.input_proj(query_embedding))
+            # all_cam_pos.append(pos)
+        # proprioception features
+        proprio_input = self.input_proj_robot_state(joint_states)
+        # fold camera dimension into width dimension
+        # src = torch.cat(all_cam_features, axis=3)
+        # pos = torch.cat(all_cam_pos, axis=3)
+
         if is_training:
-            # NOTE: consider 'encode_into_latent'
-            center_point, k_class = self.kmeans_discretizer.encode_into_latent(images) # (bs, center_point_dim)
-            center_embed = self.encoder_center_proj(center_point) 
+            center_embed = self.encoder_center_proj(k_class) 
             center_embed = rearrange(center_embed, 'bs center_dim -> bs 1 center_dim') # (bs, 1, hidden_dim)
             action_embed = self.encoder_action_proj(action) # (bs, horizon, hidden_dim)
             joint_embed = self.encoder_joint_proj(joint_states)
@@ -126,21 +170,6 @@ class our_model(nn.Module):
             mu = logvar = None
             latent_sample = torch.zeros([bs, self.latent_dim], dtype=torch.float32).to(device)
             latent_input = self.latent_out_proj(latent_sample)
-
-        all_cam_features = []
-        all_cam_pos = []
-        for cam_id, cam_name in enumerate(self.camera_names):
-            features, pos = self.backbones(images[:, cam_id])
-            features = features[0]
-            pos = pos[0]
-
-            all_cam_features.append(self.input_proj(features))
-            all_cam_pos.append(pos)
-        # proprioception features
-        proprio_input = self.input_proj_robot_state(joint_states)
-        # fold camera dimension into width dimension
-        src = torch.cat(all_cam_features, axis=3)
-        pos = torch.cat(all_cam_pos, axis=3)
 
         hs = self.transformer(src=src, 
                               mask=None, 
