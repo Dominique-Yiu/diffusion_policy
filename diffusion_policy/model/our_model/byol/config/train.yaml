@@ -1,3 +1,7 @@
+defaults:
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
 name: &name square_image
 
 shape_meta: &shape_meta

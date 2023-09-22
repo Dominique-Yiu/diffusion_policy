@@ -13,15 +13,6 @@ from diffusion_policy.model.our_model.discretizer.k_means import KMeansDiscretiz
 from diffusion_policy.model.ACT.backbone import Joiner
 from diffusion_policy.model.ACT.transformer import Transformer, TransformerEncoder, TransformerEncoderLayer
 
-"""
-workspace
-1. load pretrained byol model
-2. Get all image data, and obtain its representation with byol model
-3. Devide all representations into K clusters
-4. Init our model
-5. train our model
-"""
-
 class OurPolicy(BaseImagePolicy):
     def __init__(self,
                  shape_meta: dict,
@@ -39,6 +30,7 @@ class OurPolicy(BaseImagePolicy):
                  # others
                  kl_weights,
                  temporal_agg,
+                 state_dim,
                  **kwargs):
         super().__init__()
 
@@ -66,6 +58,7 @@ class OurPolicy(BaseImagePolicy):
             byol_channels = byol_channels,
             kmeans_class = self.num_clusters,
             action_dim = action_dim,
+            state_dim = state_dim,
             center_point_dim = center_point_dim,
             num_queries = num_queries,
             camera_names = camera_names,
@@ -75,7 +68,7 @@ class OurPolicy(BaseImagePolicy):
         self.kl_weights = kl_weights
         self.num_queries = num_queries
         self.action_dim = action_dim
-        self.temporal_agg - temporal_agg
+        self.temporal_agg = temporal_agg
         self.query_frequency = 1 if self.temporal_agg else self.num_queries
 
     def predict_action(self):
@@ -137,7 +130,13 @@ class OurPolicy(BaseImagePolicy):
 
         return optimizer
     
-    def fit_discretizer(self, input_features: torch.Tensor):
+    def fit_discretizer(self, input_pic: torch.Tensor):
+        input_features = list()
+        for item in input_pic:
+            embedding = self.model.backbones(item, return_embedding=True, return_projection=False)
+            input_features.append(embedding)
+        
+        input_features = torch.cat(input_features, axis=0)
         self.model.kmeans_discretizer.fit_discretizer(input_features=input_features)
 
 def kl_divergence(mu, logvar):
