@@ -357,10 +357,6 @@ class MaxViT(nn.Module):
                 cond_fns: Optional[Tuple[Callable, ...]] = None,
                 cond_drop_prob = 0.,
                 return_embeddings = False):
-        
-        """ 
-        NOTE: GOT BUG HERE, NEEDED REPAIR 
-        """
 
         x = self.conv_stem(x)
 
