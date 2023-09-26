@@ -19,7 +19,7 @@ from diffusion_policy.model.our_model.discretizer.k_means import KMeansDiscretiz
 from diffusion_policy.model.our_model.torch_model import TransformerForOurs
 
 
-class torch_model_policy(BaseImagePolicy):
+class Torch_Model_Policy(BaseImagePolicy):
     def __init__(self,
                  shape_meta: dict,
                  # discretizer
