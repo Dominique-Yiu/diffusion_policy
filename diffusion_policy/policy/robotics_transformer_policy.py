@@ -88,7 +88,7 @@ class Robotics_Transformer_policy(BaseImagePolicy):
         }
         return result
 
-    def compute_loss(self, batch):
+    def compute_loss(self, batch): # FIXME we need To obs not all obs
         # normalize input
         nobs = self.normalizer.normalize(batch['obs'])
         nobs = nobs[self.camera_name]   # extract the eye in hand camera [bs, horizon, h, w, c]

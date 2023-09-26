@@ -34,7 +34,6 @@ class TransformerForOurs(ModuleAttrMixin):
                  kmeans_class: int,
                  action_dim: int,
                  state_dim: int,
-                 cluster_dim: int,
                  fea_dim: int,
                  latent_dim: int, # 32
                  output_dim: int,
@@ -261,6 +260,6 @@ class TransformerForOurs(ModuleAttrMixin):
         ) # batch T n_emb
 
         # head
-        result = self.head(self.ln_f(trans_decoder_opt))
+        pred_nactions = self.head(self.ln_f(trans_decoder_opt))
 
-        return result
+        return pred_nactions, [mu, logvar]

@@ -10,7 +10,7 @@ from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from diffusion_policy.model.our_model.our_model import our_model
-from diffusion_policy.model.our_model.byol.byol import pretrain_model
+from diffusion_policy.model.our_model.byol.byol import VisualEncoder
 from diffusion_policy.model.our_model.discretizer.k_means import KMeansDiscretizer
 from diffusion_policy.model.ACT.backbone import Joiner
 from diffusion_policy.model.ACT.transformer import Transformer, TransformerEncoder, TransformerEncoderLayer
@@ -20,7 +20,7 @@ class OurPolicy(BaseImagePolicy):
                  shape_meta: dict,
                  discretizer: KMeansDiscretizer,
                  # our model
-                 byol: pretrain_model,
+                 byol: VisualEncoder,
                  byol_path: str,
                  byol_channels: int,
                  transformer: Transformer,

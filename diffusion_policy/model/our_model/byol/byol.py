@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from einops import repeat, pack, unpack, reduce, rearrange
 
 from typing import Optional, List, Tuple
 from byol_pytorch import BYOL
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 
-class pretrain_model(nn.Module):
+class VisualEncoder(nn.Module):
     def __init__(self,
                  image_size: int,
                  hidden_layer: Optional[int],
@@ -44,10 +45,24 @@ class pretrain_model(nn.Module):
         return optimizer
 
     def forward(self, batch,
+                obs_config,
                 return_embedding = False,
                 return_projection = True):
-        nobs = self.normalizer.normalize(batch['obs'])
-        # just need 'robot0_eye_in_hand_image'
-        assert 'agentview_image' in nobs.keys()
-        nobs = nobs['agentview_image'].squeeze(1)
-        return self.model(nobs, return_embedding=return_embedding, return_projection=return_projection)
+        if isinstance(batch, dict):
+            nobs = self.normalizer.normalize(batch['obs'])
+            # concat all rgb data in channel
+            cam_images = list()
+            for item in obs_config['rgb']:
+                cam_images.append(nobs[item])
+            cam_images, _ = pack(cam_images, 'batch T * h w')
+            cam_images = rearrange(cam_images, 'batch T c h w -> batch (T c) h w')
+
+            return self.model(cam_images, 
+                            return_embedding=return_embedding, 
+                            return_projection=return_projection)
+        elif isinstance(batch, torch.Tensor):
+            return self.model(batch, 
+                            return_embedding=return_embedding, 
+                            return_projection=return_projection)
+        else:
+            raise RuntimeError(f'Unsupported data type {type(batch)}.')
