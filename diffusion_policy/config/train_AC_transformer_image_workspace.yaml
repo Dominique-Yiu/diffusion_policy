@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - task: tool_hang_image
+  - task: square_image
 
 name: train_action_chunk_transformer
 _target_: diffusion_policy.workspace.train_action_chunk_transformer_workspace.TrainActionChunkTransformerWorkspace

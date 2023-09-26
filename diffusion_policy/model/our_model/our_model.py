@@ -28,7 +28,7 @@ def get_sinusoid_encoding_table(n_position, d_hid):
 
 class our_model(nn.Module):
     def __init__(self,
-                 backbones: pretrain_model,
+                 backbones: List[pretrain_model],
                  transformer: Transformer,
                  encoder: TransformerEncoder,
                  byol_channels: int,
@@ -68,7 +68,7 @@ class our_model(nn.Module):
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
 
         self.input_proj = nn.Conv2d(byol_channels, hidden_dim, kernel_size=1)
-        self.backbones = backbones
+        self.backbones = nn.ModuleList(backbones)
         self.input_proj_robot_state = nn.Linear(state_dim, hidden_dim)
 
         # encoder extra parameters
@@ -127,13 +127,19 @@ class our_model(nn.Module):
         # all_cam_features = []
         # all_cam_pos = []
         for cam_id, cam_name in enumerate(self.camera_names):
-            query_embedding = self.backbones(images[:, cam_id], return_embedding=True, return_projection=False)
+            cam_images = {
+                'obs': {
+                    cam_name: images[:, cam_id],
+                }
+            }
 
-            k_class = self.kmeans_discretizer.encode_into_latent(query_embedding)
+            projection, representation = self.backbones[0](cam_images, return_embedding=True, return_projection=True)
 
-            pos = self.position_embedding(query_embedding)
-            src = self.input_proj(query_embedding)
-            # all_cam_features.append(self.input_proj(query_embedding))
+            k_class = self.kmeans_discretizer.encode_into_latent(projection)
+
+            pos = self.position_embedding(projection) # FIXME
+            src = self.input_proj(projection)
+            # all_cam_features.append(self.input_proj(projection))
             # all_cam_pos.append(pos)
         # proprioception features
         proprio_input = self.input_proj_robot_state(joint_states)

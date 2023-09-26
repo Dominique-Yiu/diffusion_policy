@@ -43,9 +43,11 @@ class pretrain_model(nn.Module):
         
         return optimizer
 
-    def forward(self, batch):
+    def forward(self, batch,
+                return_embedding = False,
+                return_projection = True):
         nobs = self.normalizer.normalize(batch['obs'])
         # just need 'robot0_eye_in_hand_image'
-        assert 'robot0_eye_in_hand_image' in nobs.keys()
-        nobs = nobs['robot0_eye_in_hand_image'].squeeze(1)
-        return self.model(nobs)
+        assert 'agentview_image' in nobs.keys()
+        nobs = nobs['agentview_image'].squeeze(1)
+        return self.model(nobs, return_embedding=return_embedding, return_projection=return_projection)

@@ -26,7 +26,6 @@ class KMeansDiscretizer(DictOfTensorMixin):
 
     def fit_discretizer(self, 
                         input_features: torch.Tensor) -> None:
-        
         assert(
             self.feature_dim == input_features.shape[-1]
         ), f"Input images dimension {self.feature_dim} does not fitted model {input_features.shape[-1]}"

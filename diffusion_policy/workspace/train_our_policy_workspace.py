@@ -46,7 +46,6 @@ class TrainOurPolicyWorkspace(BaseWorkspace):
     def __init__(self, cfg: OmegaConf, output_dir = None):
         super().__init__(cfg, output_dir=output_dir)
 
-        import ipdb; ipdb.set_trace()
         # set seed
         seed = cfg.training.seed
         torch.manual_seed(seed)
@@ -69,7 +68,6 @@ class TrainOurPolicyWorkspace(BaseWorkspace):
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
-
         # resume training
         if cfg.training.resume:
             latest_ckpt_path = self.get_checkpoint_path()
@@ -91,9 +89,6 @@ class TrainOurPolicyWorkspace(BaseWorkspace):
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
-        
-        # image -> feature -> fit kmeans
-        self.model.fit_discretizer(dataset)
 
         # configure lr scheduler
         lr_scheduler = get_scheduler(
@@ -149,6 +144,15 @@ class TrainOurPolicyWorkspace(BaseWorkspace):
             self.ema_model.to(device)
         optimizer_to(self.optimizer, device)
 
+
+        # image -> feature -> fit kmeans 
+        """ 
+                NOTE 
+                TODO BUG: TypeError: 'list' object is not callable
+        """
+        
+        self.model.fit_discretizer(train_dataloader)
+        
         # save batch for sampling
         train_sampling_batch = None
 

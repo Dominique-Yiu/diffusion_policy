@@ -1,10 +1,12 @@
 from typing import Optional, List, Tuple
 from omegaconf import OmegaConf
+import tqdm
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from diffusion_policy.model.our_model.our_model import our_model
@@ -40,7 +42,7 @@ class OurPolicy(BaseImagePolicy):
 
         backbones = []
         # load pretrain byol model
-        checkpoint = torch.load(byol_path)
+        checkpoint = torch.load(byol_path, map_location='cuda:0') # FIXME
         byol.load_state_dict(checkpoint['model_state_dict'])
         backbones.append(byol)
 
@@ -64,6 +66,7 @@ class OurPolicy(BaseImagePolicy):
             camera_names = camera_names,
             kmeans_discretizer = discretizer
         )
+        
         self.normalizer = LinearNormalizer()
         self.kl_weights = kl_weights
         self.num_queries = num_queries
@@ -130,12 +133,17 @@ class OurPolicy(BaseImagePolicy):
 
         return optimizer
     
-    def fit_discretizer(self, input_pic: torch.Tensor):
+    def fit_discretizer(self, input_pic):
         input_features = list()
-        for item in input_pic:
-            embedding = self.model.backbones(item, return_embedding=True, return_projection=False)
-            input_features.append(embedding)
-        
+
+        with torch.no_grad():
+            with tqdm.tqdm(input_pic, desc=f"Extract image representation: ",
+                        leave=False, mininterval=1.0) as tepoch:
+                for batch_idx, batch in enumerate(tepoch):
+                    batch = dict_apply(batch, lambda x: x.to(self.device, non_blocking=True))
+                    projection, representation = self.model.backbones[0](batch, return_embedding=True, return_projection=True)
+                    input_features.append(projection)
+
         input_features = torch.cat(input_features, axis=0)
         self.model.kmeans_discretizer.fit_discretizer(input_features=input_features)
 
