@@ -283,6 +283,9 @@ class RobomimicImageRunner(BaseImageRunner):
             if isinstance(policy, ActionChunkTransformerPolicy) and policy.temporal_agg is True:
                 all_env_time_actions = torch.zeros([n_envs, self.max_steps, self.max_steps + policy.num_queries, policy.action_dim]).to(device)
 
+            if policy.discretizer.bin_centers is None:
+                import ipdb; ipdb.set_trace()
+
             done = False
             ts = 0
             while not done:

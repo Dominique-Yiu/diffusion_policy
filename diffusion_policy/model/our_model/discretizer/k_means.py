@@ -4,12 +4,15 @@ import torch.nn.functional as F
 
 import tqdm
 import ipdb
+import logging
 from typing import Optional, List, Tuple
 from diffusion_policy.model.common.dict_of_tensor_mixin import DictOfTensorMixin
 
+
+logger = logging.getLogger(__name__)
 class KMeansDiscretizer(DictOfTensorMixin):
     def __init__(self,
-                 feature_dim,
+                 feature_dim: int,
                  num_bins: int,
                  n_iter: int,
                  predict_offsets: bool=False) -> None:
@@ -23,6 +26,7 @@ class KMeansDiscretizer(DictOfTensorMixin):
         self.num_bins = num_bins
         self.n_iter = n_iter
         self.predict_offsets = predict_offsets
+        self.bin_centers = None
 
     def fit_discretizer(self, 
                         input_features: torch.Tensor) -> None:
@@ -36,8 +40,10 @@ class KMeansDiscretizer(DictOfTensorMixin):
             ncluster = self.num_bins,
             niter = self.n_iter
         )
-
-        self.params_dict['bin_centers'] = clusters
+        self.bin_centers = clusters.detach()
+        logger.info(
+            f"bin_centers: {self.bin_centers}"
+        )
 
     @classmethod
     def _kmeans(cls,
@@ -52,7 +58,7 @@ class KMeansDiscretizer(DictOfTensorMixin):
         # randomly select clusters
         clusters = sample[torch.randperm(N)[:ncluster]]
 
-        pbar = tqdm.trange(niter)
+        pbar = tqdm.trange(niter, leave=False)
         pbar.set_description("K-means clustering")
 
         for i in pbar:
@@ -70,12 +76,13 @@ class KMeansDiscretizer(DictOfTensorMixin):
                     % (i + 1, niter, ndead)
                 )
             clusters[nanix] = sample[torch.randperm(N)[:ndead]]
-
+        pbar.close()
+        
         return clusters
     
     @property
     def cluster_centers(self):
-        return self.params_dict['bin_centers']
+        return self.bin_centers
     @property
     def discretized_space(self):
         return self.num_bins
@@ -101,7 +108,7 @@ class KMeansDiscretizer(DictOfTensorMixin):
         # obtain teh closest cluster
         closest_cluster_index = torch.argmin(
             torch.sum(
-                (flattened_features[:, None, :] - self.params_dict['bin_centers'][None, :, :]) ** 2,
+                (flattened_features[:, None, :] - self.bin_centers[None, :, :]) ** 2,
                 dim = 2,
             ),
             dim = 1,
@@ -125,7 +132,7 @@ class KMeansDiscretizer(DictOfTensorMixin):
         offsets = None
         if type(latent_features) == tuple:
             latent_features, offsets = latent_features
-        closest_cluster_center = self.params_dict['bin_centers'][latent_features]
+        closest_cluster_center = self.bin_centers.data[latent_features]
         reconstructed_festures = closest_cluster_center.view(
             latent_features.shape[:-1] + (self.feature_dim,)
         )

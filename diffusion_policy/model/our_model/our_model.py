@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from diffusion_policy.model.our_model.byol.byol import pretrain_model
+from diffusion_policy.model.our_model.byol.byol import VisualEncoder
 from diffusion_policy.model.our_model.discretizer.k_means import KMeansDiscretizer
 from diffusion_policy.model.ACT.transformer import Transformer, TransformerEncoder
 from diffusion_policy.model.ACT.position_encoding import PositionEmbeddingLearned, PositionEmbeddingSine
@@ -28,7 +28,7 @@ def get_sinusoid_encoding_table(n_position, d_hid):
 
 class our_model(nn.Module):
     def __init__(self,
-                 backbones: List[pretrain_model],
+                 backbones: List[VisualEncoder],
                  transformer: Transformer,
                  encoder: TransformerEncoder,
                  byol_channels: int,

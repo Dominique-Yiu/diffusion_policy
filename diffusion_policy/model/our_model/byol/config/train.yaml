@@ -23,13 +23,13 @@ shape_meta: &shape_meta
 
 task_name: &task_name square
 dataset_type: &dataset_type ph
-dataset_path: &dataset_path /media/shawn/Yiu1/diffusion/robomimic/datasets/${task_name}/${dataset_type}/image.hdf5
+dataset_path: &dataset_path /media/yaocw/Yiu/diffusion/robomimic/datasets/${task_name}/${dataset_type}/image.hdf5
 abs_action: &abs_action False
 
 task:
-  horizon: 1
-  n_obs_steps: 1
-  n_action_steps: 1
+  horizon: 5
+  n_obs_steps: 2
+  n_action_steps: 3
   n_latency_steps: 0
   dataset_obs_steps: ${.n_obs_steps}
   past_action_visible: False
@@ -38,8 +38,14 @@ task:
 
 training:
   device: "cuda:0"
+  seed: 100
+  resume: True
   num_epochs: 100
   tqdm_interval_sec: 1.0
+
+  lr_scheduler: cosine
+  # transformer needs lr warmup
+  lr_warmup_steps: 10
 
   val_every: 1
   checkpoint_every: 10
@@ -49,11 +55,21 @@ optimizer:
   learning_rate: 1.0e-4
   betas: [0.9, 0.95]
 
+checkpoint:
+  topk:
+    monitor_key: test_mean_score
+    mode: max
+    k: 5
+    format_str: 'epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
 model:
-  _target_: diffusion_policy.model.our_model.byol.byol.pretrain_model
+  _target_: diffusion_policy.model.our_model.byol.byol.VisualEncoder
   
   image_size: 76
   hidden_layer: 'avgpool'
+  n_obs_steps: ${task.n_obs_steps}
   projection_size: 256
   projection_hidden_size: 4096
   moving_average_decay: 0.99

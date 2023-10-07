@@ -2,6 +2,7 @@ import os
 import sys
 import copy
 import tqdm
+import ipdb
 import hydra
 import wandb
 import random
@@ -31,7 +32,6 @@ OmegaConf.register_new_resolver('eval', eval, replace=True)
 class TrainTransformerForOursWorkspace(BaseWorkspace):
     def __init__(self, cfg: OmegaConf, output_dir = None):
         super().__init__(cfg, output_dir)
-
         # set seed
         seed = cfg.training.seed
         torch.manual_seed(seed)
@@ -54,7 +54,6 @@ class TrainTransformerForOursWorkspace(BaseWorkspace):
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
-        
         # resume training
         if cfg.training.resume:
             latest_ckpt_path = self.get_checkpoint_path()
@@ -106,16 +105,16 @@ class TrainTransformerForOursWorkspace(BaseWorkspace):
         assert isinstance(env_runner, BaseImageRunner)
 
         # configure logging
-        # wandb_run = wandb.init(
-        #     dir=str(self.output_dir),
-        #     config=OmegaConf.to_container(cfg, resolve=True),
-        #     **cfg.logging,
-        # )
-        # wandb.config.update(
-        #     {
-        #         "output_dir": self.output_dir,
-        #     }
-        # )
+        wandb_run = wandb.init(
+            dir=str(self.output_dir),
+            config=OmegaConf.to_container(cfg, resolve=True),
+            **cfg.logging,
+        )
+        wandb.config.update(
+            {
+                "output_dir": self.output_dir,
+            }
+        )
 
         # configure checkpoint
         topk_manager = TopKCheckpointManager(
@@ -131,7 +130,9 @@ class TrainTransformerForOursWorkspace(BaseWorkspace):
         optimizer_to(self.optimizer, device)
 
         # fit k means discretizer
-        self.policy.fit_discretizer(train_dataloader)
+        with torch.no_grad():
+            self.policy.fit_discretizer(train_dataloader)
+        self.ema_policy.discretizer = copy.deepcopy(self.policy.discretizer)
 
         # save batch for sampling
         train_sampling_batch = None
@@ -192,7 +193,7 @@ class TrainTransformerForOursWorkspace(BaseWorkspace):
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
-                            # wandb_run.log(step_log, step=self.global_step)
+                            wandb_run.log(step_log, step=self.global_step)
                             json_logger.log(step_log)
                             self.global_step += 1
 
@@ -281,7 +282,7 @@ class TrainTransformerForOursWorkspace(BaseWorkspace):
 
                 # end of epoch
                 # log of last step is combined with validation and rollout
-                # wandb_run.log(step_log, step=self.global_step)
+                wandb_run.log(step_log, step=self.global_step)
                 json_logger.log(step_log)
                 self.global_step += 1
                 self.epoch += 1

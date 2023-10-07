@@ -2,12 +2,19 @@ from typing import List, Tuple, Optional
 from einops import reduce, pack, unpack, rearrange, repeat
 import numpy as np
 import logging
+import ipdb
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from diffusion_policy.model.our_model.byol.byol import pretrain_model
+
+import pathlib
+import sys
+ROOT_DIR = str(pathlib.Path(__file__).parent.parent.parent.parent)
+sys.path.append(ROOT_DIR)
+
+from diffusion_policy.model.our_model.byol.byol import VisualEncoder
 from diffusion_policy.model.common.module_attr_mixin import ModuleAttrMixin
 from diffusion_policy.model.diffusion.positional_embedding import SinusoidalPosEmb
 from diffusion_policy.model.our_model.discretizer.k_means import KMeansDiscretizer
@@ -44,6 +51,7 @@ class TransformerForOurs(ModuleAttrMixin):
                  n_layer: int=8,
                  n_head: int=8,
                  n_emb: int=256,
+                 cam_num: int=2,
                  p_drop_emb: float=0.1,
                  p_drop_attn: float=0.1,
                  causal_attn: bool=False):
@@ -54,6 +62,7 @@ class TransformerForOurs(ModuleAttrMixin):
         
         T = horizon
         T_cond = n_obs_steps + 1 + T
+        Ts_cond = n_obs_steps + 1 + n_obs_steps
 
         # CVAE encoder configuration
         self.action_emb = nn.Linear(action_dim, n_emb)
@@ -63,10 +72,10 @@ class TransformerForOurs(ModuleAttrMixin):
         self.register_buffer('pos_table', get_sinusoid_encoding_table(T_cond, n_emb))
 
         # Transformer encoder configuration
-        self.cond_emb = nn.Linear(fea_dim, n_emb)
+        self.cond_emb = nn.Linear(fea_dim * cam_num, n_emb)
         self.latent_out_emb = nn.Linear(latent_dim, n_emb)
         self.trans_state_emb = nn.Linear(state_dim, n_emb)
-        self.cond_pos_emb = nn.Parameter(torch.zeros(1, T_cond, n_emb))
+        self.cond_pos_emb = nn.Parameter(torch.zeros(1, Ts_cond, n_emb))
 
         # Transformer decoder configuration
         self.query_emb = nn.Embedding(T, n_emb)
@@ -87,7 +96,9 @@ class TransformerForOurs(ModuleAttrMixin):
             encoder_layer=encoder_layer,
             num_layers=n_cvae_layer,
         )
-        self.cvae_encoder = [cvae_encoder for _ in range(kmeans_class)] # FIXME
+        self.cvae_encoder =  nn.ModuleList([
+            cvae_encoder for _ in range(kmeans_class)
+        ])
         # Transformer encoder
         self.trans_encoder: nn.TransformerEncoder = nn.TransformerEncoder(
             encoder_layer=encoder_layer,
@@ -118,7 +129,7 @@ class TransformerForOurs(ModuleAttrMixin):
             mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
             self.register_buffer("mask", mask)
 
-            S = T_cond
+            S = Ts_cond
             t, s = torch.meshgrid(
                 torch.arange(T),
                 torch.arange(S),
@@ -138,9 +149,10 @@ class TransformerForOurs(ModuleAttrMixin):
         # constant
         self.T = T
         self.T_cond = T_cond
-        self.horizon = self.horizon
+        self.horizon = horizon
         self.kmeans_class = kmeans_class
         self.latent_dim = latent_dim
+        self.cam_num = cam_num
 
         logger.info(
             "number of parameters: %e", sum(p.numel() for p in self.parameters())
@@ -187,7 +199,7 @@ class TransformerForOurs(ModuleAttrMixin):
                 action: torch.Tensor=None):
         """
         joint_states: low dim states (batch, To, joint_dim,)
-        cond: image features extracted by resnet (batch, To, fea_dim)
+        cond: image features extracted by resnet (batch, To * N *fea_dim)
         n_class: class info obtained by k-means discretizer (batch,)
         action: action info (batch, T, act_dim)
         """
@@ -196,7 +208,7 @@ class TransformerForOurs(ModuleAttrMixin):
         dtype = self.dtype
 
         is_training = action is not None
-        batch = joint_states.shape[0]
+        batch, To = joint_states.shape[:2]
 
         if is_training:
             # CVAE encoder
@@ -233,15 +245,16 @@ class TransformerForOurs(ModuleAttrMixin):
             latent_code = self.latent_out_emb(latent_sample)
         # CVAE decoder
         # transformer encoder
-        cond_embeddings = self.cond_emb(cond) # batch, To, fea_dim -> batch, To, n_emb
+        cond = rearrange(cond, 'batch (To dim) -> batch To dim', To=To)
+        cond_embeddings = self.cond_emb(cond) # batch, To, fea_dim * cam_num-> batch, To, n_emb
         proprio_input = self.trans_state_emb(joint_states) # batch, To, joint_dim -> batch, To, n_emb
 
-        cond_embeddings, _ = pack([latent_code, proprio_input, cond_embeddings], 'bs * n_emb') # batch, 1+To+T, n_emb
+        cond_embeddings, _ = pack([latent_code, proprio_input, cond_embeddings], 'bs * n_emb') # batch, 1+To+To, n_emb
         tc = cond_embeddings.shape[1]
         position_embeddings = self.cond_pos_emb[:, :tc, :] # each position maps to a (learnable) vector
 
         trans_encoder_ipt = self.drop(cond_embeddings + position_embeddings)
-        trans_encoder_opt = self.trans_encoder(trans_encoder_ipt) # batch, 1+To+T / T_cond, n_emb FIXME
+        trans_encoder_opt = self.trans_encoder(trans_encoder_ipt) # batch, 1+To+To / Ts_cond, n_emb FIXME
         memory = trans_encoder_opt
 
         # transformer decoder
@@ -263,3 +276,43 @@ class TransformerForOurs(ModuleAttrMixin):
         pred_nactions = self.head(self.ln_f(trans_decoder_opt))
 
         return pred_nactions, [mu, logvar]
+
+if __name__=='__main__':
+
+    # FOR DEBUG
+    model = TransformerForOurs(
+        kmeans_class = 10,
+        action_dim = 7,
+        state_dim = 9,
+        fea_dim = 256,
+        latent_dim = 32,
+        output_dim = 7,
+        horizon = 10,
+        n_obs_steps = 2,
+        n_cvae_layer = 6,
+        n_cond_layer = 8,
+        n_layer = 8,
+        n_head = 8,
+        n_emb = 512,
+        cam_num = 2,
+        p_drop_emb = 0.0,
+        p_drop_attn = 0.3,
+        causal_attn = True,
+    )
+    model.eval()
+    """
+    joint_states: low dim states (batch, To, joint_dim,)
+    cond: image features extracted by resnet (batch, To * N *fea_dim)
+    n_class: class info obtained by k-means discretizer (batch,)
+    action: action info (batch, T, act_dim)
+    """
+    batch, To, joint_dim = 64, 2,9
+    N, fea_dim = 2, 256
+    T, act_dim = 10, 7
+    joint_states = torch.randn(batch, To, joint_dim)
+    cond = torch.randn(batch, To * N *fea_dim)
+    n_class = torch.randint(low=0, high=10, size=(batch,))
+    action = torch.randn(batch, T, act_dim)
+    # forward
+    output, (_, _) = model(joint_states, cond, n_class, action)
+    print(output.shape)
