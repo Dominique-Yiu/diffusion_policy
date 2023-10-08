@@ -112,14 +112,14 @@ optimizer:
   betas: [0.9, 0.95]
 
 dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
   shuffle: True
   pin_memory: True
   persistent_workers: False
 
 val_dataloader:
-  batch_size: 64
+  batch_size: 32
   num_workers: 8
   shuffle: False
   pin_memory: True
@@ -129,7 +129,7 @@ logging:
   project: train_torch_model_policy
   resume: True
   mode: online
-  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}_add_class_info
   tags: ["${task_name}", "${name}"]
   id: null
   group: null

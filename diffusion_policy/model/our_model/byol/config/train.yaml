@@ -23,13 +23,13 @@ shape_meta: &shape_meta
 
 task_name: &task_name square
 dataset_type: &dataset_type ph
-dataset_path: &dataset_path /media/yaocw/Yiu/diffusion/robomimic/datasets/${task_name}/${dataset_type}/image.hdf5
+dataset_path: &dataset_path /media/shawn/Yiu1/diffusion/robomimic/datasets/${task_name}/${dataset_type}/image.hdf5
 abs_action: &abs_action False
 
 task:
-  horizon: 5
-  n_obs_steps: 2
-  n_action_steps: 3
+  horizon: 10
+  n_obs_steps: 1
+  n_action_steps: 1
   n_latency_steps: 0
   dataset_obs_steps: ${.n_obs_steps}
   past_action_visible: False

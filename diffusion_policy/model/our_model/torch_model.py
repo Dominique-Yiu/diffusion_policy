@@ -67,6 +67,7 @@ class TransformerForOurs(ModuleAttrMixin):
         # CVAE encoder configuration
         self.action_emb = nn.Linear(action_dim, n_emb)
         self.state_emb = nn.Linear(state_dim, n_emb)
+        self.cluster_proj = nn.Linear(1, n_emb)
         self.cluster_emb = SinusoidalPosEmb(n_emb)
         self.latent_emb = nn.Linear(n_emb, latent_dim * 2)
         self.register_buffer('pos_table', get_sinusoid_encoding_table(T_cond, n_emb))
@@ -215,6 +216,7 @@ class TransformerForOurs(ModuleAttrMixin):
             # 2.1 encode class, action, and joints -> pack
             joint_emb = self.state_emb(joint_states) # batch, To, joint_dim -> batch, To, n_emb
             class_emb = self.cluster_emb(n_class).unsqueeze(1) # batch, -> batch 1 n_emb
+            class_emb +=  self.cluster_proj(rearrange(n_class.to(dtype), 'bs -> bs 1 1'))
             action_emb = self.action_emb(action) # batch, T, act_dim -> batch, T, n_emb
             cvae_emb, _ = pack([class_emb, joint_emb, action_emb], 'bs * n_emb') # batch, 1+To+T(T_cond), n_emb
 
